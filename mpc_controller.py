@@ -50,3 +50,54 @@ v_min = 2.0
 v_max = max_speed
 k_speed = 0.05
 lat_accel_max = 2.943 / 0.221 #0.3g (multiplied by 9.81) - Limit for comfortable lateral acceleration
+
+
+def get_linear_model(state, delta0):
+    theta0 = state[2]
+    v0 = state[3]
+
+    A = np.array([[1, 0, -v0*np.sin(theta0)*dt, np.cos(theta0)*dt], 
+                  [0, 1, v0*np.cos(theta0)*dt, np.sin(theta0)*dt], 
+                  [0, 0, 1, (1/L)*np.tan(delta0)*dt],
+                  [0, 0, 0, 1]])  
+     
+    B = np.array([[0, 0], 
+                  [0, 0], 
+                  [(v0*dt)/(L*(np.cos(delta0))**2), 0],
+                  [0, dt]])
+    return A, B
+
+def mpc_solve(state, waypoint_idx):
+
+    
+    states = cp.Variable((4, N+1))
+    inputs = cp.Variable((2, N))
+
+    
+    cost = 0
+
+    for t in range(0,N):
+        idx = (waypoint_idx + t) % 500
+
+        ref_x     = x[idx]
+        ref_y     = y[idx]
+        ref_theta = heading[idx]
+        ref_v     = speed_ref[idx]
+
+        cost += (Q1 * (cp.square(states[0, t] - ref_x) + cp.square(states[1, t] - ref_y)) + 
+                     Q2 * (cp.square(states[2, t] - ref_theta)) + 
+                     Q3 * (cp.square(states[3, t] -  ref_v))
+                     + R1 * (cp.abs(inputs[0, t])) + R2 * (cp.abs(inputs[1, t])))
+            
+        if t > 0:
+            cost += (R3 * (cp.square(inputs[0, t] - inputs[0, t - 1])) + 
+                     R4 * (cp.square(inputs[1, t] - inputs[1, t - 1])) 
+                )
+
+
+             
+    
+    
+    constraints = []
+    
+    return None  
