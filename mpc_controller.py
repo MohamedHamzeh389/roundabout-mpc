@@ -53,8 +53,8 @@ Q2 = 20.0
 Q3 = 100.0
 R1 = 0.1
 R2 = 0.1
-R3 = 0.5
-R4 = 0.5
+R3 = 10.0
+R4 = 10.0
 
 delta_max = np.radians(28)
 a_max = 3.0
@@ -174,21 +174,10 @@ log_speed   = []
 log_steering = []
 log_lat_accel = []
 
-for n in range(500):
+for n in range(1000):
     distances = np.sqrt((x - car_state[0])**2 + (y - car_state[1])**2)
     way_p = (np.argmin(distances)) % 500
-    if n >= 220 and n <= 270:
-        print(f"n={n}, way_p={way_p}")
-        
-
-    if n % 50 == 0:
-        print(f"Timestep {n}/500")
-        print(f"  Car position: ({car_state[0]:.1f}, {car_state[1]:.1f})")
-        print(f"  Nearest waypoint: {way_p}, ref pos: ({x[way_p]:.1f}, {y[way_p]:.1f})")
-        print(f"  CTE: {distances[way_p]:.2f} pixels")
-        print(f"  Speed: {car_state[3]:.2f} px/s")
-        print(f"  Heading: {np.degrees(car_state[2]):.1f} degrees")
-        
+    
 
     optimal_input = mpc_solve(car_state, way_p)
 
@@ -199,14 +188,7 @@ for n in range(500):
     delta = optimal_input[0]
     accel = optimal_input[1]
 
-    if 200 <= n <= 260:
-        print(f"n={n}, steering={np.degrees(delta):.1f}°, ref_heading={np.degrees(heading[way_p]):.1f}°, car_heading={np.degrees(car_state[2]):.1f}°")
-
-    if 200 <= n <= 220:
-        kappa_t = curvature[way_p]
-        delta_ref_check = np.arctan(L / (1.0 / kappa_t)) if kappa_t > 1e-6 else 0.0
-        print(f"n={n}, curvature={kappa_t:.5f}, delta_ref={np.degrees(delta_ref_check):.1f}°, steering={np.degrees(delta):.1f}°")
-
+    
     x_k = car_state[0] + car_state[3] * np.cos(car_state[2]) * dt
     y_k = car_state[1] + car_state[3] * np.sin(car_state[2]) * dt
     theta_k = car_state[2] + (dt * car_state[3] * np.tan(optimal_input[0])) / L
