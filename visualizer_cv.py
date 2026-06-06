@@ -5,8 +5,8 @@ log = np.load('mpc_log.npy')
 Ref_point = np.load('reference_path.npy')
 x = Ref_point[:, 0]
 y = Ref_point[:, 1]
-x = x[::-1]
-y = y[::-1]
+
+
 
 base_img = cv2.imread('roundabout_satellite_cleanup.png')
 h, w = base_img.shape[:2]

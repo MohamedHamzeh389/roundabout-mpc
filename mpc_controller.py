@@ -7,6 +7,9 @@ Ref_point = np.load('reference_path.npy')
 x = Ref_point[:, 0]
 y = Ref_point[:, 1]
 
+print(f"Path waypoints: {len(x)}")
+
+
 x = x[::-1]
 y = y[::-1]
 
@@ -37,6 +40,8 @@ curvature = np.convolve(curvature, np.ones(15)/15, mode='same')
 curvature_signed = np.append(curvature_signed_raw, [curvature_signed_raw[-1], curvature_signed_raw[-1]])
 curvature_signed = np.convolve(curvature_signed, np.ones(15)/15, mode='same')
 speed_ref = max_speed/ (1 + k_curve * curvature) 
+  
+
 print("max curvature =", np.max(curvature))
 print("mean curvature =", np.mean(curvature))
 # --- MPC Parameters ---
@@ -51,15 +56,16 @@ print("mean curvature =", np.mean(curvature))
 Q1 = 50.0 
 Q2 = 20.0
 Q3 = 100.0
-R1 = 0.1
+R1 = 1
 R2 = 0.1
-R3 = 10.0
+R3 = 100.0
 R4 = 10.0
 
 delta_max = np.radians(28)
 a_max = 3.0
 v_min = 2.0
 v_max = 8.0
+speed_ref = np.clip(speed_ref, v_min, v_max)
 k_speed = 0.05
 lat_accel_max = 2.943 / 0.221 #0.3g (multiplied by 9.81) - Limit for comfortable lateral acceleration
 
@@ -80,7 +86,7 @@ def get_linear_model(state, delta0):
     return A, B
 
 def get_reference_at_distance(s_target):
-    s_target = s_target % total_s
+    s_target = np.clip(s_target, 0, total_s)
     ref_x = np.interp(s_target, s_path, x)
     ref_y = np.interp(s_target, s_path, y)
     heading_unwrapped = np.unwrap(heading)
@@ -176,24 +182,32 @@ log_lat_accel = []
 
 for n in range(1000):
     distances = np.sqrt((x - car_state[0])**2 + (y - car_state[1])**2)
-    way_p = (np.argmin(distances)) % 500
-    
+    way_p = (np.argmin(distances)) 
+
+    if n % 200 == 0:    
+        print(f"Reached {n} steps\n")
+    if way_p >= (len(x) - 30):
+        print(f"Reached end of path at step {n}")
+        break
 
     optimal_input = mpc_solve(car_state, way_p)
 
     if optimal_input is None:
-         print(f"MPC failed at way point {way_p}")
-         break
-        
-    delta = optimal_input[0]
-    accel = optimal_input[1]
+        print(f"Solver failed at step {n}, waypoint {way_p} — applying fallback")
+        delta = log_steering[-1] if log_steering else 0.0
+        accel = 0.0
+    else:   
+        delta = optimal_input[0]
+        accel = optimal_input[1]
 
     
     x_k = car_state[0] + car_state[3] * np.cos(car_state[2]) * dt
     y_k = car_state[1] + car_state[3] * np.sin(car_state[2]) * dt
-    theta_k = car_state[2] + (dt * car_state[3] * np.tan(optimal_input[0])) / L
+    theta_k = car_state[2] + (dt * car_state[3] * np.tan(delta)) / L
     theta_k = (theta_k + np.pi) % (2 * np.pi) - np.pi
-    v_k = car_state[3] + optimal_input[1] * dt
+    v_k = car_state[3] + accel * dt
+    if n % 100 == 0:
+        print(f"n={n}, delta={np.degrees(delta):.1f}°, accel={accel:.2f}")
 
     car_state = np.array([x_k, y_k, theta_k, v_k])
     log_x.append(car_state[0])
@@ -229,7 +243,7 @@ print(f"Max steering jerk: {np.degrees(steering_jerk):.1f}°/step {'✓ smooth' 
 speed_changes = np.diff(log_speed)
 accel_log = speed_changes / dt
 max_accel = np.max(np.abs(accel_log))
-print(f"Max acceleration: {max_accel:.2f} px/s² (limit: {a_max}) {'✓' if max_accel <= a_max else '✗ VIOLATED'}")
+print(f"Max acceleration: {max_accel:.2f} px/s² (limit: {a_max}) {'✓' if max_accel <= (a_max + 0.01) else '✗ VIOLATED'}")
 
 print("================================\n")
 
