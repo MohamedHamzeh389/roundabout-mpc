@@ -9,6 +9,18 @@ y = Ref_point[:, 1]
 
 print(f"Path waypoints: {len(x)}")
 
+circle_data = np.load('circle_path.npy')
+cx_circle = circle_data[:, 0]
+cy_circle = circle_data[:, 1]
+cx_circle = cx_circle[::-1]
+cy_circle = cy_circle[::-1]
+circ_idx = 270
+
+yield_x = 250
+yield_y = 450
+yield_radius =   55   
+gap_threshold = 6.0  
+circ_speed = 8.0 
 
 x = x[::-1]
 y = y[::-1]
@@ -53,17 +65,17 @@ print("mean curvature =", np.mean(curvature))
 # plt.show()
 
 
-Q1 = 50.0 
+Q1 = 100.0 
 Q2 = 20.0
-Q3 = 100.0
-R1 = 1
-R2 = 0.1
+Q3 = 500.0
+R1 = 50.0
+R2 = 100.0
 R3 = 100.0
-R4 = 10.0
+R4 = 100.0
 
 delta_max = np.radians(28)
 a_max = 3.0
-v_min = 2.0
+v_min = 0.0
 v_max = 8.0
 speed_ref = np.clip(speed_ref, v_min, v_max)
 k_speed = 0.05
@@ -97,7 +109,7 @@ def get_reference_at_distance(s_target):
     ref_kappa_signed = np.interp(s_target, s_path, curvature_signed)
     return ref_x, ref_y, ref_heading, ref_v, ref_kappa, ref_kappa_signed
 
-def mpc_solve(state, waypoint_idx):
+def mpc_solve(state, waypoint_idx, current_target_v):
 
     
     states = cp.Variable((4, N+1))
@@ -109,13 +121,18 @@ def mpc_solve(state, waypoint_idx):
     prev_ref_theta = state[2]
     current_s = s_path[waypoint_idx]
 
+    
+
 
     for t in range(N):
+
         # Physical distance the car is expected to be at timestep t
-        s_target = current_s + t * speed_ref[waypoint_idx] * dt
+        s_target = current_s + t * current_target_v * dt
 
         # Get interpolated reference at that distance
         ref_x, ref_y, ref_theta, ref_v, ref_kappa, ref_kappa_signed = get_reference_at_distance(s_target)
+        
+        ref_v = current_target_v
 
         # Normalize heading relative to previous step
         while ref_theta - prev_ref_theta > np.pi:
@@ -172,6 +189,15 @@ def mpc_solve(state, waypoint_idx):
     return inputs[:, 0].value
 
 car_state = np.array([x[0], y[0], heading[0], 5])
+target_v = 5.0
+circ_arc_length = np.cumsum(np.sqrt(np.diff(cx_circle)**2 + np.diff(cy_circle)**2))
+circ_arc_length = np.insert(circ_arc_length, 0, 0.0)
+circ_total = circ_arc_length[-1]
+circ_s = circ_total * 0.4
+
+circ_distances_to_yield = np.sqrt((cx_circle - yield_x)**2 + (cy_circle - yield_y)**2)
+circ_yield_idx = np.argmin(circ_distances_to_yield)
+circ_s_yield = circ_arc_length[circ_yield_idx]
 
 log_x       = []
 log_y       = []
@@ -179,8 +205,10 @@ log_cte     = []
 log_speed   = []
 log_steering = []
 log_lat_accel = []
+log_circ_x = []
+log_circ_y = []
 
-for n in range(1000):
+for n in range(1200):
     distances = np.sqrt((x - car_state[0])**2 + (y - car_state[1])**2)
     way_p = (np.argmin(distances)) 
 
@@ -190,7 +218,44 @@ for n in range(1000):
         print(f"Reached end of path at step {n}")
         break
 
-    optimal_input = mpc_solve(car_state, way_p)
+    # Advance circulating car
+    circ_s = (circ_s + circ_speed * dt) % circ_total
+    circ_idx = np.searchsorted(circ_arc_length, circ_s)
+    circ_x = cx_circle[circ_idx]
+    circ_y = cy_circle[circ_idx]
+
+    ego_to_yield = np.sqrt((car_state[0] - yield_x)**2 + (car_state[1] - yield_y)**2)
+
+    circ_to_yield = np.sqrt((circ_x - yield_x)**2 + (circ_y - yield_y)**2)
+    car_in_intersection = circ_to_yield < 100.0  
+
+    circ_dist_to_yield = (circ_s_yield - circ_s) % circ_total
+    time_to_conflict = circ_dist_to_yield / circ_speed
+    car_approaching = time_to_conflict < gap_threshold
+
+    yield_required = (ego_to_yield < yield_radius) and (car_approaching or car_in_intersection)
+
+    if ego_to_yield < yield_radius:
+        print(f"Ego car at yield point at step {n}")
+
+    if yield_required:
+        print(f"  YIELDING at step {n} — circulating car arrives in {time_to_conflict:.1f}s")
+
+    if yield_required:
+        desired_v = 0.0
+    else:
+        desired_v = speed_ref[way_p]
+
+    # 2. Rate-limit the target speed so it cannot instantly jump
+    smooth_accel_limit = 2.5 * dt
+    if desired_v < target_v:
+        target_v = max(desired_v, target_v - smooth_accel_limit)
+    elif desired_v > target_v:
+        target_v = min(desired_v, target_v + smooth_accel_limit)
+
+    # 3. Pass the smooth target to the solver
+    optimal_input = mpc_solve(car_state, way_p, target_v)
+
 
     if optimal_input is None:
         print(f"Solver failed at step {n}, waypoint {way_p} — applying fallback")
@@ -208,7 +273,7 @@ for n in range(1000):
     v_k = car_state[3] + accel * dt
     if n % 100 == 0:
         print(f"n={n}, delta={np.degrees(delta):.1f}°, accel={accel:.2f}")
-
+    
     car_state = np.array([x_k, y_k, theta_k, v_k])
     log_x.append(car_state[0])
     log_y.append(car_state[1])
@@ -216,6 +281,8 @@ for n in range(1000):
     log_speed.append(car_state[3])
     log_steering.append(delta)
     log_lat_accel.append(car_state[3]**2 * curvature[way_p])
+    log_circ_x.append(circ_x)
+    log_circ_y.append(circ_y)
 
 # Constraint verification report
 log = np.array([log_x, log_y, log_cte, log_speed, log_steering, log_lat_accel])
@@ -248,4 +315,5 @@ print(f"Max acceleration: {max_accel:.2f} px/s² (limit: {a_max}) {'✓' if max_
 print("================================\n")
 
 np.save('mpc_log.npy', np.array([log_x, log_y, log_cte, log_speed, log_steering, log_lat_accel]))
+np.save('circ_log.npy', np.array([log_circ_x, log_circ_y]))
 print(f"Simulation complete: {len(log_x)} timesteps logged")

@@ -6,6 +6,7 @@ Ref_point = np.load('reference_path.npy')
 x = Ref_point[:, 0]
 y = Ref_point[:, 1]
 
+circ_log = np.load('circ_log.npy')
 
 
 base_img = cv2.imread('roundabout_satellite_cleanup.png')
@@ -74,6 +75,22 @@ while True:
     cv2.fillPoly(canvas, [corners], (0, 255, 0))
     cv2.polylines(canvas, [corners], True, (255, 255, 255), 1)
 
+    circ_x = circ_log[0][frame_idx]
+    circ_y = circ_log[1][frame_idx]
+    next_f = min(frame_idx + 5, total_frames - 1)
+    circ_theta = np.arctan2(
+        circ_log[1][next_f] - circ_log[1][frame_idx],
+        circ_log[0][next_f] - circ_log[0][frame_idx]
+)
+    circ_corners = get_car_corners(circ_x, circ_y, circ_theta)
+    cv2.fillPoly(canvas, [circ_corners], (0, 0, 255))
+    cv2.polylines(canvas, [circ_corners], True, (255, 255, 255), 1)
+
+# Draw yield point marker
+    cv2.circle(canvas, (273, 465), 8, (0, 255, 255), 2)
+    cv2.putText(canvas, 'YIELD', (250, 455), 
+            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
+
     cv2.line(canvas, (int(car_x), int(car_y)),
              (int(car_x + 14 * np.cos(car_theta)),
               int(car_y + 14 * np.sin(car_theta))),
@@ -106,7 +123,7 @@ while True:
     cv2.putText(canvas, '0', (panel_x + 12, 568), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (120, 120, 120), 1)
 
     cv2.imshow('MPC Roundabout Navigation', canvas)
-
+    
     if cv2.waitKey(8) & 0xFF == ord('q'):
         break
 
