@@ -2,7 +2,7 @@ import cvxpy as cp
 import numpy as np
 import matplotlib.pyplot as plt
 
-Ref_point = np.load('reference_path.npy')
+Ref_point = np.load('Reference_path2.npy')
 
 x = Ref_point[:, 0]
 y = Ref_point[:, 1]
@@ -18,7 +18,7 @@ circ_idx = 270
 
 yield_x = 250
 yield_y = 450
-yield_radius =   55   
+yield_radius =   80   
 gap_threshold = 6.0  
 circ_speed = 8.0 
 
@@ -29,7 +29,7 @@ N = 20
 dt = 0.1
 L = 20.0
 
-    
+
 heading = np.arctan2(np.diff(y), np.diff(x))
 heading = np.append(heading, heading[-1])
 
@@ -315,5 +315,5 @@ print(f"Max acceleration: {max_accel:.2f} px/s² (limit: {a_max}) {'✓' if max_
 print("================================\n")
 
 np.save('mpc_log.npy', np.array([log_x, log_y, log_cte, log_speed, log_steering, log_lat_accel]))
-np.save('circ_log.npy', np.array([log_circ_x, log_circ_y]))
+# np.save('circ_log.npy', np.array([log_circ_x, log_circ_y]))
 print(f"Simulation complete: {len(log_x)} timesteps logged")

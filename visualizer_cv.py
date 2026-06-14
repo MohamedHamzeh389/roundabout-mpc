@@ -1,13 +1,15 @@
 import cv2
 import numpy as np
 
-log = np.load('mpc_log.npy')
-Ref_point = np.load('reference_path.npy')
+log = np.load('mpc_log_exit1.npy')
+Ref_point = np.load('reference_path_exit1.npy')
 x = Ref_point[:, 0]
 y = Ref_point[:, 1]
 
 circ_log = np.load('circ_log.npy')
-
+alt2 = np.load('reference_path2.npy')
+alt3 = np.load('reference_path3.npy')
+alt4 = np.load('reference_path4.npy')
 
 base_img = cv2.imread('roundabout_satellite_cleanup.png')
 h, w = base_img.shape[:2]
@@ -19,6 +21,13 @@ for i in range(len(x) - 1):
     pt1 = (int(x[i]), int(y[i]))
     pt2 = (int(x[i+1]), int(y[i+1]))
     cv2.line(base_img, pt1, pt2, (0, 255, 255), 1, cv2.LINE_AA)
+
+for path in [alt2, alt3, alt4]:
+    px, py = path[:, 0], path[:, 1]
+    for i in range(0, len(px) - 10, 10):
+        pt1 = (int(px[i]), int(py[i]))
+        pt2 = (int(px[min(i+2, len(px)-1)]), int(py[min(i+2, len(py)-1)]))
+        cv2.line(base_img, pt1, pt2, (0, 165, 255), 2, cv2.LINE_AA)
 
 trajectory = np.array([[int(log[0][i]), int(log[1][i])]
                         for i in range(len(log[0]))], np.int32)
@@ -81,15 +90,10 @@ while True:
     circ_theta = np.arctan2(
         circ_log[1][next_f] - circ_log[1][frame_idx],
         circ_log[0][next_f] - circ_log[0][frame_idx]
-)
+    )
     circ_corners = get_car_corners(circ_x, circ_y, circ_theta)
     cv2.fillPoly(canvas, [circ_corners], (0, 0, 255))
     cv2.polylines(canvas, [circ_corners], True, (255, 255, 255), 1)
-
-# Draw yield point marker
-    cv2.circle(canvas, (273, 465), 8, (0, 255, 255), 2)
-    cv2.putText(canvas, 'YIELD', (250, 455), 
-            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
 
     cv2.line(canvas, (int(car_x), int(car_y)),
              (int(car_x + 14 * np.cos(car_theta)),
@@ -99,19 +103,32 @@ while True:
     panel_x = w
     cv2.rectangle(canvas, (panel_x, 0), (canvas_w, h), (30, 30, 30), -1)
 
-    cv2.putText(canvas, 'MPC Telemetry', (panel_x + 10, 30),
+    cv2.putText(canvas, 'MPC DASHBOARD', (panel_x + 10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     cv2.putText(canvas, f'Step: {frame_idx}/{total_frames}',
                 (panel_x + 10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (150, 150, 150), 1)
 
     draw_chart(canvas, log[2], frame_idx, 80, 100,
-               (0, 255, 100), 'CTE (px)', 2.0, panel_x)
+               (0, 255, 100), 'Tracking Error (px)', 2.0, panel_x)
     draw_chart(canvas, log[3], frame_idx, 210, 100,
                (255, 150, 0), 'Speed (px/s)', 10.0, panel_x)
     draw_chart(canvas, np.abs(log[4]), frame_idx, 340, 100,
                (0, 100, 255), 'Steering (rad)', 0.6, panel_x)
     draw_chart(canvas, log[5] * 0.221 / 9.81, frame_idx, 470, 100,
                (200, 0, 255), 'Lat Accel (g)', 0.05, panel_x)
+
+    # Legend
+    cv2.rectangle(canvas, (8, 8), (195, 80), (0, 0, 0), -1)
+    cv2.rectangle(canvas, (8, 8), (195, 80), (80, 80, 80), 1)
+    cv2.rectangle(canvas, (14, 15), (30, 25), (0, 255, 0), -1)
+    cv2.putText(canvas, 'Ego Vehicle (MPC)', (35, 24),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1)
+    cv2.rectangle(canvas, (14, 35), (30, 45), (0, 0, 255), -1)
+    cv2.putText(canvas, 'Obstacle Vehicle', (35, 44),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1)
+    cv2.line(canvas, (14, 60), (30, 60), (0, 165, 255), 2)
+    cv2.putText(canvas, 'Alt Exit Options', (35, 64),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1)
 
     cv2.putText(canvas, '2.0', (panel_x + 12, 88), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (120, 120, 120), 1)
     cv2.putText(canvas, '0', (panel_x + 12, 178), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (120, 120, 120), 1)
@@ -123,7 +140,7 @@ while True:
     cv2.putText(canvas, '0', (panel_x + 12, 568), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (120, 120, 120), 1)
 
     cv2.imshow('MPC Roundabout Navigation', canvas)
-    
+
     if cv2.waitKey(8) & 0xFF == ord('q'):
         break
 
