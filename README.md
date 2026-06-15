@@ -170,15 +170,15 @@ J = Σ_{t=0}^{N} [ Q1·(Δx² + Δy²) + Q2·Δθ² + Q3·Δv² + R1·|δ| + R2�
  
 | Weight | Value | Purpose |
 |--------|-------|---------|
-| Q1 | 100.0 | Position tracking — penalizes lateral deviation from path |
-| Q2 | 20.0 | Heading tracking — keeps car pointed along path direction |
-| Q3 | 500.0 | Speed tracking — follows curvature-based speed profile |
-| R1 | 50.0 | Steering magnitude — discourages large steering angles |
-| R2 | 100.0 | Acceleration magnitude — discourages aggressive throttle/brake |
-| R3 | 100.0 | Steering jerk — penalizes rapid steering changes (comfort) |
-| R4 | 100.0 | Acceleration jerk — penalizes rapid speed changes (comfort) |
+| Q1 | 100.0 | Position tracking - penalizes lateral deviation from path |
+| Q2 | 20.0 | Heading tracking - keeps car pointed along path direction |
+| Q3 | 500.0 | Speed tracking - follows curvature-based speed profile |
+| R1 | 50.0 | Steering magnitude - discourages large steering angles |
+| R2 | 100.0 | Acceleration magnitude - discourages aggressive throttle/brake |
+| R3 | 100.0 | Steering jerk - penalizes rapid steering changes (comfort) |
+| R4 | 100.0 | Acceleration jerk - penalizes rapid speed changes (comfort) |
  
-R3 and R4 are **soft constraints** — they appear in the cost function as quadratic penalties rather than hard inequalities. This allows small jerk when necessary (e.g. during yielding) while still discouraging it in normal driving.
+R3 and R4 are **soft constraints** - they appear in the cost function as quadratic penalties rather than hard inequalities. This allows small jerk when necessary (e.g. during yielding) while still discouraging it in normal driving.
  
 ### Safety Constraints (10 Total)
  
