@@ -1,20 +1,17 @@
 # Roundabout MPC Trajectory Planner
   
+<img width="800" height="600" alt="MPCRoundabout-ezgif com-gif-to-mp4-converter" src="https://github.com/user-attachments/assets/55e57109-98dc-46e4-b1d7-e6df3f7b4f87" />
 
-<!-- e.g. ![Demo](demo.gif) or [▶ Watch Demo on YouTube](https://youtube.com/watch?v=YOUR_LINK) -->
- 
 An autonomous vehicle controller built in Python that navigates a **real satellite image** of a roundabout in LaSalle, Ontario using **Model Predictive Control (MPC)**. The system includes satellite image extraction, reference path generation, a linearized bicycle model MPC controller with 10 automotive safety constraints, gap-acceptance yielding behavior, a circulating obstacle vehicle, and a real-time OpenCV telemetry dashboard.
  
 ---
  
 ## Demo
  
-<img width="738" height="479" alt="image" src="https://github.com/user-attachments/assets/a1149668-1c72-4b44-8c71-bc0826983277" />
-
  
 The animation shows:
 - Green car (ego vehicle) approaching the roundabout from an entry road
-- Gap acceptance check at the yield line — car stops if circulating vehicle is too close
+- Gap acceptance check at the yield line - car stops if circulating vehicle is too close
 - Smooth re-entry once gap clears
 - Full ring arc navigation and exit onto departure road
 - Orange dashed lines showing alternative exit options
@@ -35,8 +32,9 @@ roundabout-mpc/
 ├── reference_path1.npy           # Main entry-arc-exit reference path (500 waypoints)
 ├── reference_path2.npy           # Alternative exit option 2
 ├── Reference_path3.npy           # Alternative exit option 3
+├── Reference_path4.npy           # Alternative exit option 4
 ├── mpc_log.npy                   # Simulation output (x, y, CTE, speed, steering, lat_accel)
-├── road_mask.png                 # Filtered Satalite Round-about picture
+├── road_mask.png                 # Filtered Satellite Roundabout picture
 ├── roundabout_satellite.png      # Google maps - extracted picture
 └── roundabout_satellite_cleanup.png  # Google maps - extracted picture (Cars filtered)
 ```
@@ -63,7 +61,7 @@ OpenCV Real-Time Visualization + Telemetry
  
 ---
  
-## Phase 1 — Map Extraction
+## Phase 1 - Map Extraction
  
 The satellite image is fetched using the **Google Maps Static API** at zoom level 19. The scale conversion uses the standard Web Mercator formula:
  
@@ -73,11 +71,11 @@ metres_per_pixel = 156543.03392 × cos(latitude × π/180) / 2^zoom
  
 At latitude 42.2° N (LaSalle, Ontario) and zoom 19, this gives **0.221 metres/pixel**. This conversion factor is used throughout the project to translate pixel distances into real-world measurements for constraints like lateral acceleration limits.
  
-The raw image is processed using **OpenCV HSV thresholding** and **morphological operations** (dilation, erosion) to extract a clean binary road mask — white pixels are drivable road, black pixels are everything else.
+The raw image is processed using **OpenCV HSV thresholding** and **morphological operations** (dilation, erosion) to extract a clean binary road mask - white pixels are drivable road, black pixels are everything else.
  
 ---
  
-## Phase 2 — Reference Path Generation
+## Phase 2 - Reference Path Generation
  
 A user clicks waypoints on the road mask image. A **SciPy parametric spline** (`splprep` / `splev`) is fitted through those points to generate a smooth 500-waypoint reference path saved as `reference_path.npy`.
  
@@ -91,15 +89,15 @@ s_path = np.insert(np.cumsum(path_diffs), 0, 0.0)
 total_s = s_path[-1]  # ≈ 809.7 pixels ≈ 178.9 metres
 ```
  
-This is the key architectural fix that solved the MPC's biggest failure mode — see the Controller section below.
+This is the key architectural fix that solved the MPC's biggest failure mode - see the Controller section below.
  
 ---
  
-## Phase 3 — MPC Controller
+## Phase 3 - MPC Controller
  
 ### Bicycle Kinematic Model
  
-The car is modelled as a **bicycle kinematic model** — a standard 2-axle vehicle approximation used in automotive control. The four state variables are position (x, y), heading angle (θ), and speed (v). The two inputs are steering angle (δ) and acceleration (a).
+The car is modelled as a **bicycle kinematic model** - a standard 2-axle vehicle approximation used in automotive control. The four state variables are position (x, y), heading angle (θ), and speed (v). The two inputs are steering angle (δ) and acceleration (a).
  
 The discrete-time dynamics are:
  
@@ -114,15 +112,15 @@ where `L = 20.0 px` (wheelbase ≈ 4.4 metres) and `dt = 0.1 s`.
  
 ### Why Linearization is Necessary
  
-MPC requires solving a **convex quadratic program** at every timestep. The bicycle model is nonlinear — cosine and sine of θ appear in the dynamics. CVXPY's OSQP solver only accepts linear constraints, so the model must be linearized around a reference trajectory at each step.
+MPC requires solving a **convex quadratic program** at every timestep. The bicycle model is nonlinear - cosine and sine of θ appear in the dynamics. CVXPY's OSQP solver only accepts linear constraints, so the model must be linearized around a reference trajectory at each step.
  
-**Jacobian Linearization** is used — the idea that any smooth nonlinear function is approximately linear at a single point (the same concept as a tangent line). The nonlinear dynamics `f(state, input)` are approximated as:
+**Jacobian Linearization** is used - the idea that any smooth nonlinear function is approximately linear at a single point (the same concept as a tangent line). The nonlinear dynamics `f(state, input)` are approximated as:
  
 ```
 state_{t+1} ≈ A · state_t + B · input_t + c
 ```
  
-where A and B are the Jacobian matrices (partial derivatives) evaluated at the reference state and reference steering angle, and c is an affine correction term that accounts for the linearization residual — it shifts the linear approximation to match the nonlinear function at the operating point.
+where A and B are the Jacobian matrices (partial derivatives) evaluated at the reference state and reference steering angle, and c is an affine correction term that accounts for the linearization residual - it shifts the linear approximation to match the nonlinear function at the operating point.
  
 ```python
 def get_linear_model(state, delta0):
@@ -143,15 +141,15 @@ def get_linear_model(state, delta0):
  
 **A describes how the current state evolves on its own. B describes how the optimizer's inputs change the next state. Together they are the physics rules the optimizer must obey.**
  
-Note that acceleration `a` does not appear in A at all — when you take the partial derivative of the dynamics with respect to `a`, it only appears in the speed row of B. Similarly, x and y have zero columns in B because position is not directly controlled by inputs — it changes only through the dynamics propagated by A.
+Note that acceleration `a` does not appear in A at all - when you take the partial derivative of the dynamics with respect to `a`, it only appears in the speed row of B. Similarly, x and y have zero columns in B because position is not directly controlled by inputs - it changes only through the dynamics propagated by A.
  
-### The Critical Architectural Fix — Distance-Based Reference Interpolation
+### The Critical Architectural Fix - Distance-Based Reference Interpolation
  
 The original implementation indexed the reference path by array index: `idx = (waypoint_idx + t) % 500`. This caused a fatal mismatch:
  
 - Car travel per timestep: `v × dt = 8.0 × 0.1 = 0.8 pixels`
 - Array index step distance: `circumference / 500 = 738 / 500 = 1.477 pixels`
-Over the N=20 horizon the reference was **29.6 pixels ahead** of where the car could physically reach (16.0 pixels). The optimizer tried to close an impossible gap, the linearization gradients pointed the wrong direction, and the solver commanded maximum steering in the opposite direction — the car spiralled off the path every time.
+Over the N=20 horizon the reference was **29.6 pixels ahead** of where the car could physically reach (16.0 pixels). The optimizer tried to close an impossible gap, the linearization gradients pointed the wrong direction, and the solver commanded maximum steering in the opposite direction - the car spiralled off the path every time.
  
 The fix advances the reference by actual physical distance traveled:
  
@@ -160,7 +158,7 @@ s_target = current_s + t * speed_ref[waypoint_idx] * dt
 ref_x, ref_y, ref_theta, ref_v, ... = get_reference_at_distance(s_target)
 ```
  
-This solved the failure mode completely — CTE dropped from 80+ pixels (catastrophic drift) to sub-pixel tracking throughout the entire simulation.
+This solved the failure mode completely - CTE dropped from 80+ pixels (catastrophic drift) to sub-pixel tracking throughout the entire simulation.
  
 ### Cost Function
  
@@ -199,14 +197,14 @@ All hard constraints are enforced as strict mathematical inequalities inside CVX
 | 9 | Bicycle dynamics | state_{t+1} = A·state_t + B·u_t + c | exact |
 | 10 | Initial state | state_0 = current car state | exact |
  
-**Constraint 2 — Speed-dependent steering limit** is the most physically meaningful safety constraint. At high speed a car cannot safely turn as sharply, mimicking real vehicle dynamics and preventing rollover:
+**Constraint 2 - Speed-dependent steering limit** is the most physically meaningful safety constraint. At high speed a car cannot safely turn as sharply, mimicking real vehicle dynamics and preventing rollover:
  
 ```python
 steer_limit = delta_max / (1 + k_speed * ref_v)
 constraints += [cp.abs(inputs[0, t]) <= steer_limit]
 ```
  
-**Constraint 4 — Lateral acceleration limit** bounds the centripetal force felt by occupants during cornering. 0.3g is the threshold for comfortable cornering as defined in ISO 22737 (the international standard for low-speed autonomous vehicles). It is converted from m/s² to px/s² using the map scale:
+**Constraint 4 - Lateral acceleration limit** bounds the centripetal force felt by occupants during cornering. 0.3g is the threshold for comfortable cornering as defined in ISO 22737 (the international standard for low-speed autonomous vehicles). It is converted from m/s² to px/s² using the map scale:
  
 ```python
 lat_accel_max = 0.3 × 9.81 / 0.221  # = 13.32 px/s²
@@ -229,11 +227,11 @@ The optimization problem is solved at every timestep (every 0.1s) using **OSQP**
  
 ---
  
-## Phase 4 — Gap Acceptance Yielding
+## Phase 4 - Gap Acceptance Yielding
  
 ### Why Not CVXPY for the Gap Check?
  
-The distance between two vehicles involves `x_ego` which is a CVXPY optimization variable. The expression `(x_ego − x_obs)²` is nonlinear and non-convex — CVXPY cannot handle it as a constraint. All gap calculations are done in plain NumPy **before** `mpc_solve` is called. CVXPY only sees the result as a simple speed target adjustment — which is perfectly linear.
+The distance between two vehicles involves `x_ego` which is a CVXPY optimization variable. The expression `(x_ego − x_obs)²` is nonlinear and non-convex - CVXPY cannot handle it as a constraint. All gap calculations are done in plain NumPy **before** `mpc_solve` is called. CVXPY only sees the result as a simple speed target adjustment — which is perfectly linear.
  
 ### Gap Acceptance Logic
  
@@ -256,7 +254,7 @@ car_in_intersection = circ_to_yield < 100.0                  # already nearby
 yield_required      = (ego_to_yield < yield_radius) and (car_approaching or car_in_intersection)
 ```
  
-When `yield_required = True`, the MPC target speed is set to 0.0 and the speed tracking weight is raised to Q3=2000, causing the optimizer to plan a smooth full stop within the acceleration limits. Once the gap clears, the target speed returns to the curvature-based profile and the car re-enters smoothly — no hard-coded delays or state machines needed.
+When `yield_required = True`, the MPC target speed is set to 0.0 and the speed tracking weight is raised to Q3=2000, causing the optimizer to plan a smooth full stop within the acceleration limits. Once the gap clears, the target speed returns to the curvature-based profile and the car re-enters smoothly - no hard-coded delays or state machines needed.
  
 ### Constraint Verification Results
  
@@ -270,9 +268,9 @@ Max acceleration:    3.00 px/s² (limit: 3.0)    ✓
  
 ---
  
-## Phase 5 — Real-Time Visualization
+## Phase 5 - Real-Time Visualization
  
-The visualizer (`visualizer_cv.py`) renders at ~60fps using OpenCV's direct pixel manipulation on a NumPy array — no Matplotlib rendering overhead. Each frame:
+The visualizer (`visualizer_cv.py`) renders at ~60fps using OpenCV's direct pixel manipulation on a NumPy array - no Matplotlib rendering overhead. Each frame:
  
 1. Copies the pre-rendered base image (satellite + reference paths drawn once before the loop)
 2. Draws the growing trajectory trail with `cv2.polylines`
@@ -286,7 +284,7 @@ Alternative exit paths are drawn as dashed orange lines on the base image so the
 ## Setup
  
 ```bash
-git clone https://github.com/YOUR_USERNAME/roundabout-mpc
+git clone https://github.com/MohamedHamzeh389/roundabout-mpc
 cd roundabout-mpc
 pip install numpy scipy matplotlib cvxpy opencv-python
 ```
@@ -331,5 +329,5 @@ python visualizer_cv.py     # open real-time animation
  
 ## Author
  
-**Mohamed Hamzeh** — 2nd Year Electrical Engineering Co-op, University of Windsor
+**Mohamed Hamzeh** - 2nd Year Electrical Engineering Co-op, University of Windsor
  
